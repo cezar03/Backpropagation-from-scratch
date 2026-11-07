@@ -1,5 +1,4 @@
-# Backpropagation: 8-3-8 Autoencoder
-
+# Backpropagation
 
 ## Requirements
 
