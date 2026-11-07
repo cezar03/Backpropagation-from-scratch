@@ -1,1 +1,0 @@
-## message carlos to tell him a lr=50 converges faster than 1, and if he thinks we should re run the experiments with that value
