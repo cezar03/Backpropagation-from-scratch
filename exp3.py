@@ -1,92 +1,109 @@
-# Experiment 3: W1, b1, W2, b2 analysis
-import os
+import matplotlib.pyplot as plt
 import numpy as np
 import config as cfg
-from implementation import forwardprop, initialize_weights, train
+from implementation import initialize_weights, train
 
 x = cfg.data
 y = cfg.Y
 m = len(x)
 
+# Exp 2 Hyperparaemeters
 SEED = 1
 LR = 1
+EPOCHS = 10000
 REG_LAMBDA = 0.00
-FIG_DIR = os.path.join("figures", "exp3")
-os.makedirs(FIG_DIR, exist_ok=True)
-RESULTS_FILE = os.path.join(FIG_DIR, "exp3_results.txt")
+TARGET_COST = 0.005
 
-# Check points
-checkpoints = [0, 1, 100, 500, 1500, 10000]
+methods_to_test = [ 
+    ("Batch GD", "batch", m),
+    ("SGD", "sgd", 1),
+    ("Mini-batch GD (bs = 2)", "mini-batch", 2),
+    ("Mini-batch GD (bs = 4)", "mini-batch", 4)
+]
 
-# Intialize weights
-W1, b1, W2, b2 = initialize_weights(seed=SEED)
+W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
 
-snapshots = {}
+results = []
+cost_data = {}
+updates_data = {}
 
-snapshots[0] = {
-    "W1": W1.copy(), "b1": b1.copy(),
-    "W2": W2.copy(), "b2": b2.copy()
-}
 
-current_epoch = 0
-for target_epoch in checkpoints[1:]:
-    steps = target_epoch - current_epoch
-    W1, b1, W2, b2, _, _ = train(
-        x = x,
-        y = y,
-        W1 = W1,
-        b1 = b1,
-        W2 = W2,
-        b2 = b2,
+for label, method_name, batch_size in methods_to_test:
+    updates_per_epoch = m // batch_size
+
+
+    W1_trained, b1_trained, W2_trained, b2_trained, cost_history = train(
+        x = x, 
+        y = y, 
+        W1 = W1_init,
+        b1 = b1_init,
+        W2 = W2_init,
+        b2 = b2_init,
         lr = LR,
-        epochs = steps,
+        epochs = EPOCHS,
         reg_lambda = REG_LAMBDA,
-        method = 'batch',
-        batch_size = m )
-    current_epoch = target_epoch
-    snapshots[target_epoch] = {
-        "W1": W1.copy(), "b1": b1.copy(),
-        "W2": W2.copy(), "b2": b2.copy()
-    }
+        method = method_name,
+        batch_size = batch_size )
 
-delta_b2 = np.mean(np.abs(snapshots[1]["b2"] - snapshots[0]["b2"]))
-delta_W2 = np.mean(np.abs(snapshots[1]["W2"] - snapshots[0]["W2"]))
-delta_b1 = np.mean(np.abs(snapshots[1]["b1"] - snapshots[0]["b1"]))
-delta_W1 = np.mean(np.abs(snapshots[1]["W1"] - snapshots[0]["W1"]))
 
-with open(RESULTS_FILE, "w") as f:
+    converged_epoch = None
+    for epoch, loss in enumerate(cost_history):
+        if loss <= TARGET_COST:
+            converged_epoch = epoch + 1 
+            break
 
-    print(" 1. PARAMETERS SHIFT AFTER 1 EPOCH", file=f)
-    print(f"b2 shift: {delta_b2:.8f}", file=f)
-    print(f"W2 shift: {delta_W2:.8f}", file=f)
-    print(f"b1 shift: {delta_b1:.8f}", file=f)
-    print(f"W1 shift: {delta_W1:.8f}", file=f)
-    print(file=f)
+    if converged_epoch is not None:
+        total_updates = converged_epoch * updates_per_epoch
+    else:
+        total_updates = EPOCHS * updates_per_epoch
 
-    print(" 2. PARAMETERS EVOLUTION", file=f)
+# Plots
+    epochs_axis = np.arange(1, len(cost_history) + 1)
+    cost_data[label] = (epochs_axis, cost_history)
+    updates_data[label] = (epochs_axis, epochs_axis * updates_per_epoch)
 
-    for param_name in ["b2", "W2", "b1", "W1"]:
-        print(f"\n--- Evolution of {param_name} ---", file=f)
-        for ep in checkpoints:
-            arr_flat = np.round(snapshots[ep][param_name].flatten(), 3)
-            print(f"{param_name} (Epoch {ep:<5}):\n{arr_flat}", file=f)
 
-    print("\n 3. ACTIVATION EVOLUTION", file=f)
 
-    for i in range(m):
-        y_flat = y[i].flatten()
-        print(f"\n---SAMPLE {i} (Target y: {y_flat}) ---", file=f)
 
-        print("\nHidden Layer a2 (3 neurons):", file=f)
-        for ep in checkpoints:
-            snap = snapshots[ep]
-            _, a2_i, _ = forwardprop(x[i], snap["W1"], snap["b1"], snap["W2"], snap["b2"])
-            print(f"  Epoch {ep:<5} -> a2: {np.round(a2_i.flatten(), 3)}", file=f)
+# Plot 1: Cost vs. Epochs
+plt.figure(figsize=(8, 5))
+for label in cost_data:
+    plt.plot(cost_data[label][0], cost_data[label][1], label=label)
 
-        print("\nOutput Layer a3 (8 neurons):", file=f)
-        for ep in checkpoints:
-            snap = snapshots[ep]
-            _, _, a3_i = forwardprop(x[i], snap["W1"], snap["b1"], snap["W2"], snap["b2"])
-            print(f"  Epoch {ep:<5} -> a3: {np.round(a3_i.flatten(), 3)}", file=f)
+plt.axhline(y=TARGET_COST)
+plt.title("Cost vs. Epochs")
+plt.xlabel("Epochs")
+plt.ylabel("Cost (Log Scale)")
+plt.yscale("log")
+plt.grid(True, which="both", ls=":", alpha=0.5)
+plt.legend()
 
-print(f"Results written to {RESULTS_FILE}")
+# Plot 2: Zoom In epochs 0 to 2000
+plt.figure(figsize=(8, 5))
+for label in cost_data:
+  plt.plot(cost_data[label][0], cost_data[label][1], label=label, linewidth=1.8)
+
+plt.xlim(0, 2000)  # Zooms into the saddle point transition
+plt.ylim(0.01, 1.0)
+plt.title("Plateau Breakout Detail (Epochs 0 – 2,000)", fontsize=13)
+plt.xlabel("Epochs", fontsize=11)  #
+plt.ylabel("Cost (Log Scale)", fontsize=11)  #
+plt.yscale("log")  #
+plt.grid(True, which="both", ls=":", alpha=0.5)  #
+plt.legend(fontsize=10)  #
+plt.tight_layout()
+
+# Plot 3: Cost vs. Updates
+plt.figure(figsize=(8, 5))
+for label in updates_data:
+    plt.plot(updates_data[label][0], updates_data[label][1], label=label)
+
+plt.axhline(y=TARGET_COST)
+plt.title("updates_x vs. epochs_x")
+plt.xlabel("epochs_x")
+plt.ylabel("updates_x")
+plt.grid(True, which="both", ls=":", alpha=0.5)
+plt.legend()
+
+plt.tight_layout()
+plt.show()
