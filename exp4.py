@@ -1,4 +1,3 @@
-# Experiment 4 Learning rate evolution
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,14 +8,13 @@ x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 4 Hyperparameters
 SEED = 1
 EPOCHS = 10000
 REG_LAMBDA = 0.00
 TARGET_COST = 0.01
-FIG_DIR = "figures"
-os.makedirs(FIG_DIR, exist_ok=True)  # create the figures folder if it doesn't exist yet
-lr_values = sorted(set(cfg.lr))  # remove duplicates and sort from small to large
+FIG_DIR = os.path.join("figures", "exp4")
+os.makedirs(FIG_DIR, exist_ok=True)
+lr_values = sorted(set(cfg.lr))
 
 W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
 
@@ -47,19 +45,17 @@ for lr in lr_values:
     converged_epochs[lr] = converged_epoch
     print(f"lr = {lr:<5} -> converged at epoch: {converged_epoch}, final cost: {cost_history[-1]:.6f}")
 
-# Plot 1: Cost vs. Epochs for every learning rate (one distinct color per lr)
-colors = plt.cm.tab10.colors  # 10 clearly different colors: blue, orange, green, red, purple, ...
+colors = plt.cm.tab10.colors
 
-conv_marks = []  # (epoch, cost, color) of every convergence dot
+conv_marks = []
 
 plt.figure(figsize=(8, 5))
 for i, lr in enumerate(lr_values):
     epochs_axis = np.arange(1, len(cost_data[lr]) + 1)
-    linestyle = "-" if i < len(colors) else "--"  # after 10 lrs the colors repeat, so switch to dashed
+    linestyle = "-" if i < len(colors) else "--"
     plt.plot(epochs_axis, cost_data[lr], label=f"lr = {lr}", color=colors[i % len(colors)],
              ls=linestyle, linewidth=2.0)
 
-    # dot where the line first reaches the target cost
     if converged_epochs[lr] is not None:
         ep = converged_epochs[lr]
         plt.plot(ep, cost_data[lr][ep - 1], marker="o", markersize=7, color=colors[i % len(colors)],
@@ -69,13 +65,11 @@ for i, lr in enumerate(lr_values):
 plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
 plt.yscale("log")
 
-# vertical line from each dot down to the x axis, with the exact epoch written under the axis
 ax = plt.gca()
 y_bottom = ax.get_ylim()[0]
-row_last_ep = []  # last epoch written on each row of labels
+row_last_ep = []
 for ep, c, color in sorted(conv_marks):
     ax.vlines(ep, y_bottom, c, color=color, ls="--", linewidth=1.0)
-    # epochs that are close together would overlap, so put the label on the first row with enough space
     row = next((r for r, last in enumerate(row_last_ep) if ep - last >= 400), len(row_last_ep))
     if row == len(row_last_ep):
         row_last_ep.append(ep)
@@ -94,7 +88,6 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(FIG_DIR, "lr_cost_curves.png"), dpi=300)
 
-# Plot 2: Epochs needed to reach the target cost vs. learning rate
 conv_lrs = [lr for lr in lr_values if converged_epochs[lr] is not None]
 conv_eps = [converged_epochs[lr] for lr in conv_lrs]
 fail_lrs = [lr for lr in lr_values if converged_epochs[lr] is None]

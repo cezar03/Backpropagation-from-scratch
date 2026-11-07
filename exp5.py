@@ -1,5 +1,3 @@
-# Experiment 5: Weight Initialization
-
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,14 +8,13 @@ x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 5 Hyperparameters
 SEED = 1
 EPOCHS = 10000
 REG_LAMBDA = 0.00
 TARGET_COST = 0.01
-FIG_DIR = "figures"
+FIG_DIR = os.path.join("figures", "exp5")
 LR_VALUE = 1
-os.makedirs(FIG_DIR, exist_ok=True)  # create the figures folder
+os.makedirs(FIG_DIR, exist_ok=True)
 
 
 weights_t = [
@@ -54,16 +51,14 @@ for name, (W1_init, b1_init, W2_init, b2_init) in weights_t:
     converged_epochs[name] = converged_epoch
     print(f"Weight Initialization: {name:<15} -> converged at epoch: {converged_epoch}, final cost: {cost_history[-1]:.6f}")
 
-# Plot: Cost vs. Epochs for every weight initialization (one distinct color per initialization)
-colors = plt.cm.tab10.colors
-conv_marks = []  # (epoch, cost, color) of every convergence dot
 
+colors = plt.cm.tab10.colors
+conv_marks = []  
 plt.figure(figsize=(8, 5))
 for i, (name, _) in enumerate(weights_t):
     epochs_axis = np.arange(1, len(cost_data[name]) + 1)
     plt.plot(epochs_axis, cost_data[name], label=name, color=colors[i % len(colors)], linewidth=2.0)
 
-    # dot where the line first reaches the target cost
     if converged_epochs[name] is not None:
         ep = converged_epochs[name]
         plt.plot(ep, cost_data[name][ep - 1], marker="o", markersize=7, color=colors[i % len(colors)],
@@ -73,13 +68,12 @@ for i, (name, _) in enumerate(weights_t):
 plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
 plt.yscale("log")
 
-# vertical line from each dot down to the x axis, with the exact epoch written under the axis
-ax = plt.gca()
+
 y_bottom = ax.get_ylim()[0]
-row_last_ep = []  # last epoch written on each row of labels
+row_last_ep = []  
 for ep, c, color in sorted(conv_marks):
     ax.vlines(ep, y_bottom, c, color=color, ls="--", linewidth=1.0)
-    # epochs that are close together would overlap, so put the label on the first row with enough space
+    
     row = next((r for r, last in enumerate(row_last_ep) if ep - last >= 400), len(row_last_ep))
     if row == len(row_last_ep):
         row_last_ep.append(ep)

@@ -1,4 +1,5 @@
 # Experiment 3: W1, b1, W2, b2 analysis
+import os
 import numpy as np
 import config as cfg
 from implementation import forwardprop, initialize_weights, train
@@ -7,16 +8,17 @@ x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 3 Hyperparameters
 SEED = 1
 LR = 1
 REG_LAMBDA = 0.00
-RESULTS_FILE = "exp3_results.txt"
+FIG_DIR = os.path.join("figures", "exp3")
+os.makedirs(FIG_DIR, exist_ok=True)
+RESULTS_FILE = os.path.join(FIG_DIR, "exp3_results.txt")
 
 # Check points
 checkpoints = [0, 1, 100, 500, 1500, 10000]
 
-# Initialize weights
+# Intialize weights
 W1, b1, W2, b2 = initialize_weights(seed=SEED)
 
 snapshots = {}
@@ -26,7 +28,6 @@ snapshots[0] = {
     "W2": W2.copy(), "b2": b2.copy()
 }
 
-# train in pieces, from one checkpoint to the next, and save the parameters at every checkpoint
 current_epoch = 0
 for target_epoch in checkpoints[1:]:
     steps = target_epoch - current_epoch

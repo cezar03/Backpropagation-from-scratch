@@ -1,6 +1,5 @@
 .DS_Store
 __pycache__/
 *.pyc
-figures/
 .idea
 __pycache__

@@ -1,4 +1,3 @@
-# Experiment 2: Batch GD vs. SGD vs. Mini-batch GD
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,14 +8,14 @@ x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 2 Hyperparameters
+# Exp 2 Hyperparaemeters
 SEED = 1
 LR = 1
 EPOCHS = 10000
 REG_LAMBDA = 0.00
 TARGET_COST = 0.01
-FIG_DIR = "figures"
-os.makedirs(FIG_DIR, exist_ok=True)  # create the figures folder if it doesn't exist yet
+FIG_DIR = os.path.join("figures", "exp2")
+os.makedirs(FIG_DIR, exist_ok=True)
 
 methods_to_test = [
     ("Batch GD", "batch", m),
@@ -24,7 +23,7 @@ methods_to_test = [
     ("Mini-batch GD (bs = 2)", "mini-batch", 2),
     ("Mini-batch GD (bs = 4)", "mini-batch", 4)
 ]
-colors = plt.cm.tab10.colors  # one clearly different color per method
+colors = plt.cm.tab10.colors
 
 W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
 
@@ -64,13 +63,11 @@ for label, method_name, batch_size in methods_to_test:
 
 
 def mark_convergence(ax, conv_marks):
-    # vertical line from each dot down to the x axis, with the exact value written under the axis
     y_bottom = ax.get_ylim()[0]
-    row_last = []  # last value written on each row of labels
-    min_gap = 0.04 * (ax.get_xlim()[1] - ax.get_xlim()[0])  # labels closer than this would overlap
+    row_last = []
+    min_gap = 0.04 * (ax.get_xlim()[1] - ax.get_xlim()[0])
     for xv, c, color in sorted(conv_marks):
         ax.vlines(xv, y_bottom, c, color=color, ls="--", linewidth=1.0)
-        # put the label on the first row with enough space
         row = next((r for r, last in enumerate(row_last) if xv - last >= min_gap), len(row_last))
         if row == len(row_last):
             row_last.append(xv)
@@ -83,14 +80,13 @@ def mark_convergence(ax, conv_marks):
 
 
 # Plot 1: Cost vs. Epochs
-conv_marks = []  # (epoch, cost, color) of every convergence dot
+conv_marks = []
 
 plt.figure(figsize=(8, 5))
 for i, (label, _, _) in enumerate(methods_to_test):
     epochs_axis = np.arange(1, len(cost_data[label]) + 1)
     plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
 
-    # dot where the line first reaches the target cost
     ep = converged_epochs[label]
     if ep is not None:
         plt.plot(ep, cost_data[label][ep - 1], marker="o", markersize=7, color=colors[i],
@@ -110,14 +106,14 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(FIG_DIR, "methods_cost_vs_epochs.png"), dpi=300)
 
-# Plot 2: Zoom in on epochs 0 to 2000, where the network breaks out of the plateau
+# Plot 2: Zoom In epochs 0 to 2000
 plt.figure(figsize=(8, 5))
 for i, (label, _, _) in enumerate(methods_to_test):
     epochs_axis = np.arange(1, len(cost_data[label]) + 1)
     plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
 
 plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
-plt.xlim(0, 2000)
+plt.xlim(0, 2000)  # Zooms into the saddle point transition
 plt.ylim(TARGET_COST / 2, 1.0)
 plt.yscale("log")
 plt.title("Plateau Breakout Detail (Epochs 0 - 2000)")
@@ -129,8 +125,8 @@ plt.tight_layout()
 
 plt.savefig(os.path.join(FIG_DIR, "methods_plateau_zoom.png"), dpi=300)
 
-# Plot 3: Cost vs. number of weight updates (one epoch = m / batch_size updates)
-conv_marks = []  # (updates, cost, color) of every convergence dot
+# Plot 3: Cost vs. Updates
+conv_marks = []
 
 plt.figure(figsize=(8, 5))
 for i, (label, _, _) in enumerate(methods_to_test):
