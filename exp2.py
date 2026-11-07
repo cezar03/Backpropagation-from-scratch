@@ -1,155 +1,91 @@
-import os
+# Experiment 3: W1, b1, W2, b2 analysis
 import matplotlib.pyplot as plt
 import numpy as np
 import config as cfg
-from implementation import initialize_weights, train
+from implementation import forwardprop, initialize_weights, train
+import pandas as pd
 
 x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 2 Hyperparaemeters
-SEED = 1
-LR = 1
-EPOCHS = 10000
-REG_LAMBDA = 0.00
-TARGET_COST = 0.01
-FIG_DIR = os.path.join("figures", "exp2")
-os.makedirs(FIG_DIR, exist_ok=True)
+# Check points
+checkpoints = [0, 1, 100, 500, 1500, 10000]
 
-methods_to_test = [
-    ("Batch GD", "batch", m),
-    ("SGD", "sgd", 1),
-    ("Mini-batch GD (bs = 2)", "mini-batch", 2),
-    ("Mini-batch GD (bs = 4)", "mini-batch", 4)
-]
-colors = plt.cm.tab10.colors
+# Intialize weights
+W1, b1, W2, b2 = initialize_weights(seed=1)
 
-W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
+snapshots = {}
 
-cost_data = {}
-updates_per_epoch = {}
-converged_epochs = {}
+snapshots[0] = {
+    "W1": W1.copy(), "b1": b1.copy(),
+    "W2": W2.copy(), "b2": b2.copy()
+}
 
-for label, method_name, batch_size in methods_to_test:
-    W1_trained, b1_trained, W2_trained, b2_trained, cost_history, _ = train(
-        x = x,
-        y = y,
-        W1 = W1_init,
-        b1 = b1_init,
-        W2 = W2_init,
-        b2 = b2_init,
-        lr = LR,
-        epochs = EPOCHS,
-        reg_lambda = REG_LAMBDA,
-        method = method_name,
-        batch_size = batch_size )
-
-    converged_epoch = None
-    for epoch, loss in enumerate(cost_history):
-        if loss <= TARGET_COST:
-            converged_epoch = epoch + 1
-            break
-
-    cost_data[label] = cost_history
-    updates_per_epoch[label] = m // batch_size
-    converged_epochs[label] = converged_epoch
-    if converged_epoch is not None:
-        total_updates = converged_epoch * updates_per_epoch[label]
-        print(f"{label:<24} -> converged at epoch: {converged_epoch}, weight updates: {total_updates}, "
-              f"final cost: {cost_history[-1]:.6f}")
-    else:
-        print(f"{label:<24} -> converged at epoch: None, final cost: {cost_history[-1]:.6f}")
+current_epoch = 0
+for target_epoch in checkpoints[1:]:
+    steps = target_epoch - current_epoch
+    W1, b1, W2, b2, _ = train(
+        x, y, W1, b1, W2, b2,
+        lr=1.0, epochs=steps, reg_lambda=0.0,
+        method="batch", batch_size=m
+    )
+    current_epoch = target_epoch
+    snapshots[target_epoch] = {
+        "W1": W1.copy(), "b1": b1.copy(),
+        "W2": W2.copy(), "b2": b2.copy()
+    }
 
 
-def mark_convergence(ax, conv_marks):
-    y_bottom = ax.get_ylim()[0]
-    row_last = []
-    min_gap = 0.04 * (ax.get_xlim()[1] - ax.get_xlim()[0])
-    for xv, c, color in sorted(conv_marks):
-        ax.vlines(xv, y_bottom, c, color=color, ls="--", linewidth=1.0)
-        row = next((r for r, last in enumerate(row_last) if xv - last >= min_gap), len(row_last))
-        if row == len(row_last):
-            row_last.append(xv)
-        row_last[row] = xv
-        ax.annotate(str(xv), xy=(xv, 0), xycoords=("data", "axes fraction"),
-                    xytext=(0, -20 - 9 * row), textcoords="offset points",
-                    ha="center", va="top", fontsize=7, color=color, fontweight="bold")
-    ax.set_ylim(bottom=y_bottom)
-    return len(row_last)
+cols = [f"{checkpoints[i]} -> {checkpoints[i+1]}" for i in range(len(checkpoints) - 1)]
+shifts = {
+    f"{checkpoints[i]} -> {checkpoints[i+1]}": [
+        np.mean(np.abs(snapshots[checkpoints[i+1]][p] - snapshots[checkpoints[i]][p]))
+        for p in ["b2", "W2", "b1", "W1"]
+    ]
+    for i in range(len(checkpoints) - 1)
+}
+df_shifts = pd.DataFrame(shifts, index=["b2", "W2", "b1", "W1"]).round(4)
 
+delta_b2 = np.mean(np.abs(snapshots[1]["b2"] - snapshots[0]["b2"]))
+delta_W2 = np.mean(np.abs(snapshots[1]["W2"] - snapshots[0]["W2"]))
+delta_b1 = np.mean(np.abs(snapshots[1]["b1"] - snapshots[0]["b1"]))
+delta_W1 = np.mean(np.abs(snapshots[1]["W1"] - snapshots[0]["W1"]))
 
-# Plot 1: Cost vs. Epochs
-conv_marks = []
+with open("exp2_results.txt", "w") as f:
 
-plt.figure(figsize=(8, 5))
-for i, (label, _, _) in enumerate(methods_to_test):
-    epochs_axis = np.arange(1, len(cost_data[label]) + 1)
-    plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
+    print(" 1. PARAMETERS SHIFT AFTER 1 EPOCH", file=f)
+    print(f"b2 shift: {delta_b2:.8f}", file=f)
+    print(f"W2 shift: {delta_W2:.8f}", file=f)
+    print(f"b1 shift: {delta_b1:.8f}", file=f)
+    print(f"W1 shift: {delta_W1:.8f}", file=f)
+    print(file=f)
 
-    ep = converged_epochs[label]
-    if ep is not None:
-        plt.plot(ep, cost_data[label][ep - 1], marker="o", markersize=7, color=colors[i],
-                 markeredgecolor="white", markeredgewidth=1.0, zorder=3)
-        conv_marks.append((ep, cost_data[label][ep - 1], colors[i]))
+    print(" 2. PARAMETERS EVOLUTION")
 
-plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
-plt.yscale("log")
-n_rows = mark_convergence(plt.gca(), conv_marks)
+    for param_name in ["b2", "W2", "b1", "W1"]:
+        print(f"\n--- Evolution of {param_name} ---", file=f)
+        for ep in checkpoints:
+            arr_flat = np.round(snapshots[ep][param_name].flatten(), 3)
+            print(f"{param_name} (Epoch {ep:<5}):\n{arr_flat}", file=f)
 
-plt.title("Cost vs. Epochs")
-plt.xlabel("Epochs", labelpad=14 + 9 * n_rows)
-plt.ylabel("Cost (Log Scale)")
-plt.grid(True, which="both", ls=":", alpha=0.5)
-plt.legend(fontsize=10)
-plt.tight_layout()
+    print(" 3. ACTIAVTION EVOLUTION")
 
-plt.savefig(os.path.join(FIG_DIR, "methods_cost_vs_epochs.png"), dpi=300)
+    for i in range(m):
+        y_flat = y[i].flatten()
+        print(f"\n---SAMPLE {i} (Target y: {y_flat}) ---", file=f)
+        
+        print("\nHidden Layer a2 (3 neurons):", file=f)
+        for ep in checkpoints:
+            snap = snapshots[ep]
+            _, a2_i, _ = forwardprop(x[i], snap["W1"], snap["b1"], snap["W2"], snap["b2"])
+            print(f"  Epoch {ep:<5} -> a2: {np.round(a2_i.flatten(), 3)}", file=f)
+            
+        print("\nOutput Layer a3 (8 neurons):", file=f)
+        for ep in checkpoints:
+            snap = snapshots[ep]
+            _, _, a3_i = forwardprop(x[i], snap["W1"], snap["b1"], snap["W2"], snap["b2"])
+            print(f"  Epoch {ep:<5} -> a3: {np.round(a3_i.flatten(), 3)}", file=f)
 
-# Plot 2: Zoom In epochs 0 to 2000
-plt.figure(figsize=(8, 5))
-for i, (label, _, _) in enumerate(methods_to_test):
-    epochs_axis = np.arange(1, len(cost_data[label]) + 1)
-    plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
-
-plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
-plt.xlim(0, 2000)  # Zooms into the saddle point transition
-plt.ylim(TARGET_COST / 2, 1.0)
-plt.yscale("log")
-plt.title("Plateau Breakout Detail (Epochs 0 - 2000)")
-plt.xlabel("Epochs")
-plt.ylabel("Cost (Log Scale)")
-plt.grid(True, which="both", ls=":", alpha=0.5)
-plt.legend(fontsize=10)
-plt.tight_layout()
-
-plt.savefig(os.path.join(FIG_DIR, "methods_plateau_zoom.png"), dpi=300)
-
-# Plot 3: Cost vs. Updates
-conv_marks = []
-
-plt.figure(figsize=(8, 5))
-for i, (label, _, _) in enumerate(methods_to_test):
-    updates_axis = np.arange(1, len(cost_data[label]) + 1) * updates_per_epoch[label]
-    plt.plot(updates_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
-
-    ep = converged_epochs[label]
-    if ep is not None:
-        n_updates = ep * updates_per_epoch[label]
-        plt.plot(n_updates, cost_data[label][ep - 1], marker="o", markersize=7, color=colors[i],
-                 markeredgecolor="white", markeredgewidth=1.0, zorder=3)
-        conv_marks.append((n_updates, cost_data[label][ep - 1], colors[i]))
-
-plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
-plt.yscale("log")
-n_rows = mark_convergence(plt.gca(), conv_marks)
-
-plt.title("Cost vs. Weight Updates")
-plt.xlabel("Weight updates", labelpad=14 + 9 * n_rows)
-plt.ylabel("Cost (Log Scale)")
-plt.grid(True, which="both", ls=":", alpha=0.5)
-plt.legend(fontsize=10)
-plt.tight_layout()
-
-plt.savefig(os.path.join(FIG_DIR, "methods_cost_vs_updates.png"), dpi=300)
-plt.show()
+    print("\n--- MEAN ABSOLUTE PARAMETER SHIFTS ---", file=f)
+    print(df_shifts.to_string(), file=f)
