@@ -68,7 +68,7 @@ for i, (name, _) in enumerate(weights_t):
 plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
 plt.yscale("log")
 
-
+ax = plt.gca()
 y_bottom = ax.get_ylim()[0]
 row_last_ep = []  
 for ep, c, color in sorted(conv_marks):
