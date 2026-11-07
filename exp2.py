@@ -1,3 +1,5 @@
+# Experiment 2: Batch GD vs. SGD vs. Mini-batch GD
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import config as cfg
@@ -7,34 +9,33 @@ x = cfg.data
 y = cfg.Y
 m = len(x)
 
-# Exp 2 Hyperparaemeters
+# Exp 2 Hyperparameters
 SEED = 1
 LR = 1
 EPOCHS = 10000
 REG_LAMBDA = 0.00
-TARGET_COST = 0.005
+TARGET_COST = 0.01
+FIG_DIR = "figures"
+os.makedirs(FIG_DIR, exist_ok=True)  # create the figures folder if it doesn't exist yet
 
-methods_to_test = [ 
+methods_to_test = [
     ("Batch GD", "batch", m),
     ("SGD", "sgd", 1),
     ("Mini-batch GD (bs = 2)", "mini-batch", 2),
     ("Mini-batch GD (bs = 4)", "mini-batch", 4)
 ]
+colors = plt.cm.tab10.colors  # one clearly different color per method
 
 W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
 
-results = []
 cost_data = {}
-updates_data = {}
-
+updates_per_epoch = {}
+converged_epochs = {}
 
 for label, method_name, batch_size in methods_to_test:
-    updates_per_epoch = m // batch_size
-
-
-    W1_trained, b1_trained, W2_trained, b2_trained, cost_history = train(
-        x = x, 
-        y = y, 
+    W1_trained, b1_trained, W2_trained, b2_trained, cost_history, _ = train(
+        x = x,
+        y = y,
         W1 = W1_init,
         b1 = b1_init,
         W2 = W2_init,
@@ -45,65 +46,114 @@ for label, method_name, batch_size in methods_to_test:
         method = method_name,
         batch_size = batch_size )
 
-
     converged_epoch = None
     for epoch, loss in enumerate(cost_history):
         if loss <= TARGET_COST:
-            converged_epoch = epoch + 1 
+            converged_epoch = epoch + 1
             break
 
+    cost_data[label] = cost_history
+    updates_per_epoch[label] = m // batch_size
+    converged_epochs[label] = converged_epoch
     if converged_epoch is not None:
-        total_updates = converged_epoch * updates_per_epoch
+        total_updates = converged_epoch * updates_per_epoch[label]
+        print(f"{label:<24} -> converged at epoch: {converged_epoch}, weight updates: {total_updates}, "
+              f"final cost: {cost_history[-1]:.6f}")
     else:
-        total_updates = EPOCHS * updates_per_epoch
-
-# Plots
-    epochs_axis = np.arange(1, len(cost_history) + 1)
-    cost_data[label] = (epochs_axis, cost_history)
-    updates_data[label] = (epochs_axis, epochs_axis * updates_per_epoch)
+        print(f"{label:<24} -> converged at epoch: None, final cost: {cost_history[-1]:.6f}")
 
 
+def mark_convergence(ax, conv_marks):
+    # vertical line from each dot down to the x axis, with the exact value written under the axis
+    y_bottom = ax.get_ylim()[0]
+    row_last = []  # last value written on each row of labels
+    min_gap = 0.04 * (ax.get_xlim()[1] - ax.get_xlim()[0])  # labels closer than this would overlap
+    for xv, c, color in sorted(conv_marks):
+        ax.vlines(xv, y_bottom, c, color=color, ls="--", linewidth=1.0)
+        # put the label on the first row with enough space
+        row = next((r for r, last in enumerate(row_last) if xv - last >= min_gap), len(row_last))
+        if row == len(row_last):
+            row_last.append(xv)
+        row_last[row] = xv
+        ax.annotate(str(xv), xy=(xv, 0), xycoords=("data", "axes fraction"),
+                    xytext=(0, -20 - 9 * row), textcoords="offset points",
+                    ha="center", va="top", fontsize=7, color=color, fontweight="bold")
+    ax.set_ylim(bottom=y_bottom)
+    return len(row_last)
 
 
 # Plot 1: Cost vs. Epochs
-plt.figure(figsize=(8, 5))
-for label in cost_data:
-    plt.plot(cost_data[label][0], cost_data[label][1], label=label)
+conv_marks = []  # (epoch, cost, color) of every convergence dot
 
-plt.axhline(y=TARGET_COST)
+plt.figure(figsize=(8, 5))
+for i, (label, _, _) in enumerate(methods_to_test):
+    epochs_axis = np.arange(1, len(cost_data[label]) + 1)
+    plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
+
+    # dot where the line first reaches the target cost
+    ep = converged_epochs[label]
+    if ep is not None:
+        plt.plot(ep, cost_data[label][ep - 1], marker="o", markersize=7, color=colors[i],
+                 markeredgecolor="white", markeredgewidth=1.0, zorder=3)
+        conv_marks.append((ep, cost_data[label][ep - 1], colors[i]))
+
+plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
+plt.yscale("log")
+n_rows = mark_convergence(plt.gca(), conv_marks)
+
 plt.title("Cost vs. Epochs")
+plt.xlabel("Epochs", labelpad=14 + 9 * n_rows)
+plt.ylabel("Cost (Log Scale)")
+plt.grid(True, which="both", ls=":", alpha=0.5)
+plt.legend(fontsize=10)
+plt.tight_layout()
+
+plt.savefig(os.path.join(FIG_DIR, "methods_cost_vs_epochs.png"), dpi=300)
+
+# Plot 2: Zoom in on epochs 0 to 2000, where the network breaks out of the plateau
+plt.figure(figsize=(8, 5))
+for i, (label, _, _) in enumerate(methods_to_test):
+    epochs_axis = np.arange(1, len(cost_data[label]) + 1)
+    plt.plot(epochs_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
+
+plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
+plt.xlim(0, 2000)
+plt.ylim(TARGET_COST / 2, 1.0)
+plt.yscale("log")
+plt.title("Plateau Breakout Detail (Epochs 0 - 2000)")
 plt.xlabel("Epochs")
 plt.ylabel("Cost (Log Scale)")
+plt.grid(True, which="both", ls=":", alpha=0.5)
+plt.legend(fontsize=10)
+plt.tight_layout()
+
+plt.savefig(os.path.join(FIG_DIR, "methods_plateau_zoom.png"), dpi=300)
+
+# Plot 3: Cost vs. number of weight updates (one epoch = m / batch_size updates)
+conv_marks = []  # (updates, cost, color) of every convergence dot
+
+plt.figure(figsize=(8, 5))
+for i, (label, _, _) in enumerate(methods_to_test):
+    updates_axis = np.arange(1, len(cost_data[label]) + 1) * updates_per_epoch[label]
+    plt.plot(updates_axis, cost_data[label], label=label, color=colors[i], linewidth=2.0)
+
+    ep = converged_epochs[label]
+    if ep is not None:
+        n_updates = ep * updates_per_epoch[label]
+        plt.plot(n_updates, cost_data[label][ep - 1], marker="o", markersize=7, color=colors[i],
+                 markeredgecolor="white", markeredgewidth=1.0, zorder=3)
+        conv_marks.append((n_updates, cost_data[label][ep - 1], colors[i]))
+
+plt.axhline(y=TARGET_COST, color="black", ls=":", linewidth=1.5, label="Target cost")
 plt.yscale("log")
+n_rows = mark_convergence(plt.gca(), conv_marks)
+
+plt.title("Cost vs. Weight Updates")
+plt.xlabel("Weight updates", labelpad=14 + 9 * n_rows)
+plt.ylabel("Cost (Log Scale)")
 plt.grid(True, which="both", ls=":", alpha=0.5)
-plt.legend()
-
-# Plot 2: Zoom In epochs 0 to 2000
-plt.figure(figsize=(8, 5))
-for label in cost_data:
-  plt.plot(cost_data[label][0], cost_data[label][1], label=label, linewidth=1.8)
-
-plt.xlim(0, 2000)  # Zooms into the saddle point transition
-plt.ylim(0.01, 1.0)
-plt.title("Plateau Breakout Detail (Epochs 0 – 2,000)", fontsize=13)
-plt.xlabel("Epochs", fontsize=11)  #
-plt.ylabel("Cost (Log Scale)", fontsize=11)  #
-plt.yscale("log")  #
-plt.grid(True, which="both", ls=":", alpha=0.5)  #
-plt.legend(fontsize=10)  #
+plt.legend(fontsize=10)
 plt.tight_layout()
 
-# Plot 3: Cost vs. Updates
-plt.figure(figsize=(8, 5))
-for label in updates_data:
-    plt.plot(updates_data[label][0], updates_data[label][1], label=label)
-
-plt.axhline(y=TARGET_COST)
-plt.title("updates_x vs. epochs_x")
-plt.xlabel("epochs_x")
-plt.ylabel("updates_x")
-plt.grid(True, which="both", ls=":", alpha=0.5)
-plt.legend()
-
-plt.tight_layout()
+plt.savefig(os.path.join(FIG_DIR, "methods_cost_vs_updates.png"), dpi=300)
 plt.show()

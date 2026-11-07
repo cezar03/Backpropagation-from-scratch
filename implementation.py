@@ -1,6 +1,8 @@
 
 import numpy as np
+import config as cfg
 
+epochs=cfg.epochs
 
 def initialize_weights(input_dim=8, hidden_dim=3, output_dim=8, eps= 0.01, seed=0):
     np.random.seed(seed)
@@ -84,18 +86,18 @@ def train(x, y, W1, b1, W2, b2, lr, epochs, reg_lambda=0, method='batch',
     W1_curr, b1_curr = W1.copy(), b1.copy()
     W2_curr, b2_curr = W2.copy(), b2.copy()
     cost_history = [] # Average loss throught the training process
-
+    lr_history = [] # Learning rate evolution throught the training process
     for epoch in range(epochs):
         for i in range(0, m, bs):
             x_batch = x[i: i + bs]
             y_batch = y[i: i + bs]
-
             W1_curr, b1_curr, W2_curr, b2_curr = gradient_descent(
                 x_batch, y_batch, lr, W1_curr, b1_curr, W2_curr, b2_curr, reg_lambda)
 
         epoch_cost = cost(x, y, m, W1_curr, b1_curr, W2_curr, b2_curr, reg_lambda)
         cost_history.append(epoch_cost)
+        lr_history.append(lr)
 
 
-    return  W1_curr, b1_curr, W2_curr, b2_curr, cost_history
+    return  W1_curr, b1_curr, W2_curr, b2_curr, cost_history, lr_history
 

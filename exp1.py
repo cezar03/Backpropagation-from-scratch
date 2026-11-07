@@ -15,7 +15,9 @@ REG_LAMBDA = 0.00
 
 W1_init, b1_init, W2_init, b2_init = initialize_weights(seed=SEED)
 
-W1_trained, b1_trained, W2_trained, b2_trained, cost_history = train(
+
+
+W1_trained, b1_trained, W2_trained, b2_trained, cost_history, lr_history = train(
     x = x, 
     y = y, 
     W1 = W1_init,
@@ -41,5 +43,5 @@ plt.grid(True, which="both", ls=":", alpha=0.5)
 plt.legend(fontsize=10)
 plt.tight_layout()
 
-#plt.savefig("batch_gd_cost_curve.png", dpi=300)
+plt.savefig("batch_gd_cost_curve.png", dpi=300)
 plt.show()
