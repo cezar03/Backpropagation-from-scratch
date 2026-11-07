@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 figures/
 .idea
+__pycache__
